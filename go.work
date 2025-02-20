@@ -1,0 +1,10 @@
+go 1.23.4
+
+use (
+	// ./gophermart
+	// ./gophermart_billing
+	// ./gophermart_protos
+  // ./gophermart_portal
+  // ./gophermart_accrual_adapter
+  // ./gophermart_query
+)

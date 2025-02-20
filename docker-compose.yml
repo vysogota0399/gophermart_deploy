@@ -1,0 +1,181 @@
+################################################################################
+x-app: &app
+  platform: linux/arm64
+  labels:
+    logging: "promtail"
+    logging_jobname: "containerlogs"
+  depends_on:
+  #   - loki
+    - db
+    - redis
+  tty: true
+  stdin_open: true
+
+x-kafka-exporter: &kafka-exporter
+  image: docker.io/bitnami/kafka-exporter:${KAFKA_EXPORTER_VERSION}
+  restart: unless-stopped
+  command: ["--kafka.server=kafka-1:9092"]
+
+x-zookeeper: &zookeeper
+  image: docker.io/bitnami/zookeeper:${ZK_VERSION}
+  volumes:
+    - "zookeeper:/bitnami"
+  environment:
+    ALLOW_ANONYMOUS_LOGIN: "yes"
+
+x-redpanda-console: &redpanda-console
+  image: docker.redpanda.com/vectorized/console:v${REDPANDA_CONSOLE_VERSION}
+  entrypoint: /bin/sh
+  command: -c 'echo "$$CONSOLE_CONFIG_FILE" > /tmp/config.yml; /app/console'
+  environment: 
+    CONFIG_FILEPATH: /tmp/config.yml
+    CONSOLE_CONFIG_FILE: |
+      kafka:
+        brokers: ["kafka-1:9092", "kafka-2:9092", "kafka-3:9092"]
+        schemaRegistry:
+          enabled: false
+          urls: ["http://redpanda-0:8081"]
+  ports:
+    - ${REDPANDA_CONSOLE_PORT}:8080
+  depends_on:
+    - kafka-1
+    - kafka-2
+    - kafka-3
+
+x-prometheus: &prometheus
+  image: quay.io/prometheus/prometheus:${PROMETHEUS_VERSION}
+  volumes:
+    - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+  ports:
+    - ${PROMETHEUS_PORT}:9090
+
+x-grafana: &grafana
+  image: docker.io/grafana/grafana:${GRAFANA_VERSION}
+  user: root
+  restart: unless-stopped
+  ports:
+    - ${GRAFANA_PORT}:3000
+  volumes:
+    - grafana:/var/lib/grafana
+    - ./infra/grafana/provisioning:/etc/grafana/provisioning
+    - ./infra/grafana/dashboards:/var/lib/grafana/dashboards
+    - ./infra/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yaml
+  environment:
+    GF_AUTH_ANONYMOUS_ENABLED: true
+    GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+    GF_AUTH_DISABLE_LOGIN_FORM: true
+
+x-kafka: &kafka
+  build: &kafka-build
+    context: .
+    dockerfile: Dockerfile.kafka
+    args:
+      JMX_JAVAAGENT_VERSION: "${JMX_JAVAAGENT_VERSION}"
+  environment: &kafka-env
+    HOME: /opt/bitnami/kafka
+    KAFKA_CFG_ZOOKEEPER_CONNECT: "zookeeper:2181"
+    KAFKA_ENABLE_KRAFT: "no"
+    KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+    ALLOW_PLAINTEXT_LISTENER: "yes"
+    KAFKA_OPTS: >-
+      -javaagent:/opt/bitnami/kafka/libs/jmx_prometheus_javaagent-${JMX_JAVAAGENT_VERSION}.jar=${JMX_JAVAAGENT_PORT}:/etc/kafka/prometheus/kafka.yml
+  volumes:
+    - ./infra/jmx-exporter/kafka.yml:/etc/kafka/prometheus/kafka.yml:ro
+  depends_on:
+    - zookeeper
+################################################################################
+
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: always
+    shm_size: 128mb
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_PASSWORD: secret
+      TZ: GMT+3
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis:/data
+    ports:
+      - 6379:6379
+
+  loki:
+    image: grafana/loki:latest
+    ports:
+      - 3100:3100
+    command: -config.file=/etc/loki/local-config.yaml
+
+  promtail:
+    image:  grafana/promtail:latest
+    container_name: promtail_app
+    volumes:
+      - ./infra/promtail/docker-config.yaml:/etc/promtail/docker-config.yaml
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: -config.file=/etc/promtail/docker-config.yaml
+    depends_on:
+      - loki
+
+  zookeeper:
+    <<: *zookeeper
+    container_name: zookeeper
+
+  kafka-ui:
+    <<: *redpanda-console
+    container_name: kafka-ui
+
+  kafka-1:
+    <<: *kafka
+    container_name: kafka-1
+    environment:
+      <<: *kafka-env
+      KAFKA_BROKER_ID: 1
+    ports:
+    - 9092:9092
+
+  kafka-2:
+    <<: *kafka
+    container_name: kafka-2
+    environment:
+      <<: *kafka-env
+      KAFKA_BROKER_ID: 2
+    ports:
+    - 9093:9092
+
+  kafka-3:
+    <<: *kafka
+    container_name: kafka-3
+    environment:
+      <<: *kafka-env
+      KAFKA_BROKER_ID: 3
+    ports:
+    - 9094:9092
+
+  grafana:
+    <<: *grafana
+    container_name: grafana
+
+  prometheus:
+    <<: *prometheus
+    container_name: prometheus
+
+  kafka-exporter:
+    <<: *kafka-exporter
+    container_name: kafka-exporter
+
+networks:
+  default:
+    name: gophermart-network
+
+volumes:
+  pg_data:
+  redis:
+  grafana:
+  zookeeper:
