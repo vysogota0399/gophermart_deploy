@@ -3,7 +3,7 @@
 - [Портал](https://github.com/vysogota0399/gophermart/pull/1/files#diff-cf81a85d40cf3ee0ee07feedb20637b3103d12972ff6723db2ac635f71f28cf2)
 - [Биллинг](https://github.com/vysogota0399/gophermart_billing/pull/1/files)
 - [Сервис агрегации данных](https://github.com/vysogota0399/gophermart_query/pull/1/files)
-- [Сервис - адптер accrual]()
+- [Сервис - адптер accrual](https://github.com/vysogota0399/gophermart_accrual_adapter/pull/1)
 - [Сервис для генерации фейковых заказов]()
 
 ### Event storming
