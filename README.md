@@ -9,7 +9,23 @@
 - [Сервис для генерации фейковых заказов](https://github.com/vysogota0399/gophermart_fake_orders/pull/1)
 - [Схемы сообщений и сервисов GRPC](https://github.com/vysogota0399/gophermart_protos/pull/1)
 
-### Event storming
+----
+## Демо
+
+#### Регистрация
+![рег](регистрация.gif)
+
+##### Авторизация/просмотр списка заказов
+![orders_list](список_заказов.gif)
+
+##### Создание заказа
+![create_order](создание_заказа.gif)
+
+#### Работа с балансом и списанием
+![balance](баланс.gif)
+---
+
+## Event storming
 
 ![event storming](event_storming.jpg)
 
@@ -73,10 +89,10 @@ curl --location 'http://51.250.2.8:123/api/user/orders' \
 
 Если пользователь выполнил операцию списания средств за заказ, в биллинг создается запись о списании для выбранного заказа. Это сообщение так же стримится в топик `transaction_processed`. 
 
-### Cхема данных
+## Cхема данных
 
 ![alt text](<схема данных.drawio.png>)
 
-### Компоненты системы
+## Компоненты системы
 
 ![alt text](компоненты.drawio.png)
