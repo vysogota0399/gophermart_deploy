@@ -6,7 +6,7 @@
 - [Биллинг](https://github.com/vysogota0399/gophermart_billing/pull/1/files)
 - [Сервис агрегации данных](https://github.com/vysogota0399/gophermart_query/pull/1/files)
 - [Сервис - адптер accrual](https://github.com/vysogota0399/gophermart_accrual_adapter/pull/1)
-- [Сервис для генерации фейковых заказов]()
+- [Сервис для генерации фейковых заказов](https://github.com/vysogota0399/gophermart_fake_orders/pull/1)
 
 ### Event storming
 
