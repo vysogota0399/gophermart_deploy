@@ -1,0 +1,67 @@
+x-app: &app
+  labels:
+    logging: "promtail"
+    logging_jobname: "containerlogs"
+  tty: true
+  stdin_open: true
+  env_file:
+    - .env.migration
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: db_migration
+    restart: always
+    shm_size: 128mb
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./create_databases.sql:/create_database.sql
+    env_file:
+      - .env.migration
+    environment:
+      POSTGRES_PASSWORD: secret
+      TZ: GMT+3
+  
+  gophermart-fake_orders-migration:
+    <<: *app
+    depends_on:
+      - db
+    container_name: gophermart-fake_orders-migration
+    build:
+      context: gophermart_fake_orders
+      dockerfile: .docker/Dockerfile
+
+  gophermart-portal-migration:
+    <<: *app
+    container_name: gophermart-portal-migration
+    build:
+      context: gophermart
+      dockerfile: .docker/api/Dockerfile
+
+  gophermart-accrual_adapter-migration:
+    <<: *app
+    container_name: gophermart-accrual_adapter-migration
+    build:
+      context: gophermart_accrual_adapter
+      dockerfile: .docker/Dockerfile
+
+  gophermart-billing-migration:
+    <<: *app
+    container_name: gophermart-billing-migration
+    build:
+      context: gophermart_billing
+      dockerfile: .docker/Dockerfile
+
+  gophermart-query-migration:
+    <<: *app
+    container_name: gophermart-query-migration
+    build:
+      context: gophermart_query
+      dockerfile: .docker/Dockerfile
+
+volumes:
+  pg_data:
+
+networks:
+  default:
+    name: gophermart-network
+  

@@ -10,3 +10,17 @@ tasks:
           var: REPOSITORIES
         cmd: cd {{ .ITEM }}; go test --cover ./...
 
+  migrate:
+    dotenv: ['.env.migration']
+    desc: Create databeses and run all migrations
+    cmds:
+      - cmd: docker compose -f docker-compose.migration.yml build
+      - cmd: docker compose -f docker-compose.migration.yml up -d
+      - cmd: docker exec db_migration psql -U $DB_USER -f create_database.sql
+      - cmd: docker exec gophermart-fake_orders-migration ./migrate
+      - cmd: docker exec gophermart-portal-migration ./migrate
+      - cmd: docker exec gophermart-accrual_adapter-migration ./migrate
+      - cmd: docker exec gophermart-billing-migration ./migrate
+      - cmd: docker exec gophermart-query-migration ./migrate
+      - cmd: docker compose -f docker-compose.migration.yml down
+     

@@ -1,0 +1,5 @@
+CREATE DATABASE gophermart_portal_development;
+CREATE DATABASE gophermart_accrual_adapter_development;
+CREATE DATABASE gophermart_billing_development;
+CREATE DATABASE gophermart_development;
+CREATE DATABASE gophermart_query_development;
