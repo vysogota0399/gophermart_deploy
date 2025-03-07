@@ -5,11 +5,27 @@ x-app: &app
     logging: "promtail"
     logging_jobname: "containerlogs"
   depends_on:
-  #   - loki
+    - loki
     - db
     - redis
+    - kafka-1
+    - kafka-2
+    - kafka-3
+    - gophermart-db-query
   tty: true
   stdin_open: true
+  env_file:
+    - .env
+  restart:
+    always
+
+x-db: &db
+  image: postgres:16-alpine
+  restart: always
+  container_name: gophermart-db
+  shm_size: 128mb
+  volumes:
+    - pg_data:/var/lib/postgresql/data
 
 x-kafka-exporter: &kafka-exporter
   image: docker.io/bitnami/kafka-exporter:${KAFKA_EXPORTER_VERSION}
@@ -83,24 +99,139 @@ x-kafka: &kafka
     - ./infra/jmx-exporter/kafka.yml:/etc/kafka/prometheus/kafka.yml:ro
   depends_on:
     - zookeeper
+  restart:
+    always
 ################################################################################
 
 
 services:
+####################### APPLICATIONS
+  gophermart-fake-orders:
+    <<: *app
+    container_name: gophermart-fake-orders
+    build:
+      context: gophermart_fake_orders
+      dockerfile: .docker/Dockerfile
+    command:
+      ./api
+    ports:
+      - 8060:8060
+
+  # ACRUAL_ADAPTER:
+  gophermart-accrual_adapter-order_created_consumer:
+    <<: *app
+    container_name: gophermart-accrual_adapter-order_created_consumer
+    build:
+      context: gophermart_accrual_adapter
+      dockerfile: .docker/Dockerfile
+    command:
+      ./order_created_consumer
+
+  gophermart-accrual_adapter-order_created_daemons:
+    <<: *app
+    container_name: gophermart-accrual_adapter-order_created_daemons
+    build:
+      context: gophermart_accrual_adapter
+      dockerfile: .docker/Dockerfile
+    command:
+      ./order_created_daemons
+
+  gophermart-accrual_adapter-transaction_outbox:
+    <<: *app
+    container_name: gophermart-accrual_adapter-transaction_outbox
+    build:
+      context: gophermart_accrual_adapter
+      dockerfile: .docker/Dockerfile
+    command:
+      ./transaction_outbox
+
+  # BILLING:
+  gophermart-billing-sync_commands:
+    <<: *app
+    container_name: gophermart-billing-sync_commands
+    build:
+      context: gophermart_billing
+      dockerfile: .docker/Dockerfile
+    command:
+      ./billing_sync_commands
+
+  gophermart-billing-accruals_consumer:
+    <<: *app
+    container_name: gophermart-billing-accruals_consumer
+    build:
+      context: gophermart_billing
+      dockerfile: .docker/Dockerfile
+    command:
+      ./billing_accruals_consumer
+  
+  # PORTAL API
+  gophermart-portal_api:
+    <<: *app
+    container_name: gophermart_portal-api
+    build:
+      context: gophermart
+      dockerfile: .docker/api/Dockerfile
+    ports:
+      - 8000:8000
+    command:
+      ./api
+
+  # QUERY
+  gophermart-query-order_created_consumer:
+    <<: *app
+    build:
+      context: gophermart_query
+      dockerfile: .docker/Dockerfile
+    container_name: gophermart_query-order_created_consumer
+    command:
+      ./order_created_consumer
+
+  gophermart-query-order_updated_consumer:
+    <<: *app
+    build:
+      context: gophermart_query
+      dockerfile: .docker/Dockerfile
+    container_name: gophermart-query-order_updated_consumer
+    command:
+      ./order_updated_consumer
+
+  gophermart-query-transaction_processed_consumer:
+    <<: *app
+    build:
+      context: gophermart_query
+      dockerfile: .docker/Dockerfile
+    container_name: gophermart-query-transaction_processed_consumer
+    command:
+      ./transaction_processed_consumer
+
+  gophermart-query-grpc_server:
+    <<: *app
+    build:
+      context: gophermart_query
+      dockerfile: .docker/Dockerfile
+    container_name: gophermart-query-grpc_server
+    command:
+      ./grpc_server
+
+  gophermart-accruals-service:
+    image: accrual_service
+
+####################### INFRASTRUCTURE
   db:
-    image: postgres:16-alpine
-    restart: always
-    shm_size: 128mb
-    volumes:
-      - pg_data:/var/lib/postgresql/data
+    <<: *db
     ports:
       - 5432:5432
-    environment:
-      POSTGRES_PASSWORD: secret
-      TZ: GMT+3
+    container_name: gophermart-db
+  
+  gophermart-db-query:
+    <<: *db
+    ports:
+      - 5433:5432
+    container_name: gophermart-db-query
 
   redis:
     image: redis:7-alpine
+    container_name: gophermart-redis
     volumes:
       - redis:/data
     ports:
@@ -108,13 +239,14 @@ services:
 
   loki:
     image: grafana/loki:latest
+    container_name: gophermart-loki
     ports:
       - 3100:3100
     command: -config.file=/etc/loki/local-config.yaml
 
   promtail:
     image:  grafana/promtail:latest
-    container_name: promtail_app
+    container_name: gophermart-promtail_app
     volumes:
       - ./infra/promtail/docker-config.yaml:/etc/promtail/docker-config.yaml
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
@@ -125,11 +257,11 @@ services:
 
   zookeeper:
     <<: *zookeeper
-    container_name: zookeeper
+    container_name: gophermart-zookeeper
 
   kafka-ui:
     <<: *redpanda-console
-    container_name: kafka-ui
+    container_name: gophermart-kafka-ui
 
   kafka-1:
     <<: *kafka
@@ -137,8 +269,6 @@ services:
     environment:
       <<: *kafka-env
       KAFKA_BROKER_ID: 1
-    ports:
-    - 9092:9092
 
   kafka-2:
     <<: *kafka
@@ -146,8 +276,6 @@ services:
     environment:
       <<: *kafka-env
       KAFKA_BROKER_ID: 2
-    ports:
-    - 9093:9092
 
   kafka-3:
     <<: *kafka
@@ -155,20 +283,18 @@ services:
     environment:
       <<: *kafka-env
       KAFKA_BROKER_ID: 3
-    ports:
-    - 9094:9092
 
   grafana:
     <<: *grafana
-    container_name: grafana
+    container_name: gophermart-grafana
 
   prometheus:
     <<: *prometheus
-    container_name: prometheus
+    container_name: gophermart-prometheus
 
   kafka-exporter:
     <<: *kafka-exporter
-    container_name: kafka-exporter
+    container_name: gophermart-kafka-exporter
 
 networks:
   default:

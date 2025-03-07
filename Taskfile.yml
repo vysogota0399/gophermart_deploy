@@ -10,6 +10,14 @@ tasks:
           var: REPOSITORIES
         cmd: cd {{ .ITEM }}; go test --cover ./...
 
+  load_accrual_image:
+    desc: Load accrual server docker iamge
+    cmd: docker load < accrual_service.tar.gz
+
+  seed_accrual_service:
+    desc: Create records in accrual service
+    cmd: docker compose run --rm gophermart-fake-orders ./seeds
+
   migrate:
     dotenv: ['.env.migration']
     desc: Create databeses and run all migrations
@@ -23,4 +31,56 @@ tasks:
       - cmd: docker exec gophermart-billing-migration ./migrate
       - cmd: docker exec gophermart-query-migration ./migrate
       - cmd: docker compose -f docker-compose.migration.yml down
+  
+  start:
+    desc: Start applications
+    dotenv: ['.env']
+    cmds:
+      - task: migrate
+      - task: load_accrual_image
+      - cmd: docker compose build
+      - cmd: docker compose up -d --force-recreate
+      - task: seed_accrual_service
+      - cmd: docker compose logs -f
+
+  rebuild_billing:
+    desc: Rebuild imgae then restart billing container
+    dotenv: ['.env']
+    cmds:
+      - cmd: docker compose stop gophermart-billing-sync_commands gophermart-billing-accruals_consumer
+      - cmd: docker compose build
+      - cmd: docker compose up -d
+
+  rebuild_portal:
+    desc: Rebuild image then restart portal container
+    dotenv: ['.env']
+    cmds:
+      - cmd: docker compose stop gophermart-portal_api
+      - cmd: docker compose build
+      - cmd: docker compose up -d
+
+  rebuild_accrual_adapter:
+    desc: Rebuild image then restart accrual adapter container
+    dotenv: ['.env']
+    cmds:
+      - cmd: docker compose stop gophermart-accrual_adapter-order_created_consumer gophermart-accrual_adapter-order_created_daemons gophermart-accrual_adapter-transaction_outbox
+      - cmd: docker compose build
+      - cmd: docker compose up -d
+
+  rebuild_query:
+    desc: Rebuild image then restart query container
+    dotenv: ['.env']
+    cmds:
+      - cmd: docker compose stop gophermart-query-order_created_consumer gophermart-query-order_updated_consumer gophermart-query-transaction_processed_consumer gophermart-query-grpc_server
+      - cmd: docker compose build
+      - cmd: docker compose up -d
      
+  db:
+    dotenv: ['.env']
+    desc: Start psql session
+    cmd: docker exec -it gophermart-db psql -U $DB_USER
+
+  query_db:
+    dotenv: ['.env']
+    desc: Start psql session
+    cmd: docker exec -it gophermart-db-query psql -U $DB_USER
