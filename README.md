@@ -10,6 +10,30 @@
 - [Схемы сообщений и сервисов GRPC](https://github.com/vysogota0399/gophermart_protos/pull/1)
 
 ----
+# Запуск проекта
+
+```
+git clone https://github.com/vysogota0399/gophermart_deploy.git
+cd gophermart_deploy
+```
+
+Инициализация компонентов
+```
+task init
+```
+
+Проверка что все компоненты спулились
+```
+task test
+```
+
+Сборка образов, миграция, запуск
+```
+task start
+```
+
+> Если в момент выполнения произойдет ошибка "psql: error: connection to server on socket "/var/run/postgresql/.s.PGSQL.5432" failed: No such file or directory Is the server running locally and accepting connections on that socket?", тогда необходимо перезапустить команду start
+----
 ## Демо
 
 #### Регистрация

@@ -1,6 +1,15 @@
 version: '3'
 
 tasks:
+  init:
+    desc: Setup repository
+    vars:
+      REPOSITORIES: [gophermart_accrual_adapter, gophermart_fake_orders, gophermart_query, gophermart_billing, gophermart, gophermart_protos]
+    cmds:
+      - for:
+          var: REPOSITORIES
+        cmd: git clone --branch review https://github.com/vysogota0399/{{ .ITEM }}.git {{ .ITEM }}
+
   test:
     desc: Run tests
     vars:
