@@ -1,0 +1,12 @@
+version: '3'
+
+tasks:
+  test:
+    desc: Run tests
+    vars:
+      REPOSITORIES: [gophermart_accrual_adapter, gophermart_fake_orders, gophermart_query, gophermart_billing, gophermart, gophermart_protos]
+    cmds:
+      - for:
+          var: REPOSITORIES
+        cmd: cd {{ .ITEM }}; go test --cover ./...
+
